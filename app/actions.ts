@@ -35,12 +35,16 @@ export interface SavedGame {
 // --- FILE SYSTEM HELPERS (Local Fallback) ---
 
 function ensureDataDir() {
-    const dir = path.dirname(DATA_FILE);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-    if (!fs.existsSync(DATA_FILE)) {
-        fs.writeFileSync(DATA_FILE, JSON.stringify([]));
+    try {
+        const dir = path.dirname(DATA_FILE);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        if (!fs.existsSync(DATA_FILE)) {
+            fs.writeFileSync(DATA_FILE, JSON.stringify([]));
+        }
+    } catch (e: any) {
+        console.warn('[WARN] ensureDataDir failed (likely read-only FS on Vercel):', e.message);
     }
 }
 
@@ -63,7 +67,7 @@ async function saveGamesFS(games: SavedGame[]) {
 // --- ACTIONS ---
 
 export async function getGames(): Promise<SavedGame[]> {
-    console.log('[DEBUG] getGames called. KV Mode:', shouldUseKV());
+    console.log('[DEBUG] getGames called. ENV KV_URL:', process.env.KV_REST_API_URL ? 'FOUND' : 'MISSING', 'KV Mode:', shouldUseKV());
     if (shouldUseKV()) {
         try {
             // Retrieve from Vercel KV
