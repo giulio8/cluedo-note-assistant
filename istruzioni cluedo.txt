@@ -1,0 +1,55 @@
+# 🕵️ SCHEDA TECNICA E REGOLAMENTO: CLUEDO
+
+## 📋 PREPARAZIONE (SET UP)
+
+* **Posizionamento Pedine**: Colloca tutti i 6 segnalini personaggio sui rispettivi spazi iniziali sul tabellone. Tutti i segnalini devono essere presenti, anche se i giocatori sono meno di 6.
+* **Posizionamento Armi**: Disponi le 6 miniature delle armi in stanze diverse, scelte casualmente.
+* **Mazzo Indizi**: Separa le 29 carte indizio, mescolale e posizionale coperte accanto al tabellone.
+* **Busta del Caso**: Separa le restanti carte in tre mazzi (Personaggi, Armi e Stanze). Prendi la carta superiore di ciascun mazzo e inseriscila nella busta del caso senza che nessuno la veda. Queste 3 carte sono la soluzione del mistero.
+* **Distribuzione Carte**: Mescola insieme tutte le restanti carte personaggio, arma e stanza (ovvero tutte tranne le 3 inserite nella busta) e distribuile interamente tra i giocatori.
+* **Equità della Distribuzione**: Poiché le carte vengono distribuite tutte fino a esaurimento del mazzo, il numero di carte per ogni giocatore può risultare diseguale.
+* **Taccuino**: Ogni giocatore riceve un foglio del detective per segnare segretamente le carte in proprio possesso, eliminandole dai sospetti.
+
+---
+
+## 🎲 MECCANICHE DI GIOCO
+
+### Turno di Gioco
+
+Il gioco inizia sempre con **Miss Scarlett** e prosegue in senso orario. Se Scarlett non è tra i personaggi scelti, inizia il personaggio successivo in ordine orario.
+
+1. **Lancio dei Dadi e Movimento**:
+* Se ottieni l'icona della **lente d'ingrandimento**, pesca una carta indizio e seguine le istruzioni. L'icona vale come 1 per il movimento. Se ottieni due icone, pesca due carte.
+* Muovi il segnalino del numero ottenuto. Non puoi muoverti in diagonale, né passare attraverso caselle occupate o ripassare sulla stessa casella nello stesso turno.
+* **Alternative**: Puoi usare un **passaggio segreto** tra stanze d'angolo o restare nella stanza in cui ti trovi già.
+
+
+2. **Fare un Sospetto (Suggestion)**:
+* Devi essere all'interno di una stanza per fare un sospetto relativo a quel luogo.
+* Dichiara: *"Suggerisco che sia stato [Personaggio], con [Arma], in [Stanza attuale]"*.
+* Sposta il personaggio e l'arma nominati nella tua stanza attuale.
+* **La smentita**: Il giocatore alla tua sinistra deve mostrarti segretamente una delle carte nominate se la possiede. Se ne ha più di una, sceglie quale mostrare. Se non ne ha, la richiesta passa al giocatore successivo a sinistra.
+
+
+3. **Annotazione**: Segna sul foglio ogni carta che ti viene mostrata; quella carta non può essere nella busta del caso.
+
+---
+
+## 🏆 VINCERE: L'ACCUSA
+
+* L'accusa può essere fatta solo durante il proprio turno, anche subito dopo un sospetto.
+* Non è necessario trovarsi nella stanza indicata nell'accusa.
+* Ogni giocatore può fare **una sola accusa** in tutta la partita.
+
+**Esito dell'Accusa**:
+
+1. Dichiara l'accusa e guarda segretamente il contenuto della busta.
+2. **Successo**: Se tutte e 3 le carte corrispondono, hai vinto. Mostra le carte a tutti.
+3. **Errore**: Se l'accusa è sbagliata, rimetti le carte nella busta. Non potrai più muoverti o fare sospetti, ma dovrai continuare a mostrare le tue carte agli altri quando richiesto.
+
+---
+
+## 🚪 LOGISTICA DELLA VILLA
+
+* **Passaggi Segreti**: Collegano direttamente la **Cucina** con lo **Studio** e la **Veranda** (Conservatory) con il **Soggiorno** (Lounge).
+* **Spostamenti**: I personaggi chiamati in una stanza durante un sospetto non tornano alla posizione originale. Nel loro turno, possono scegliere di restare lì e fare un sospetto o muoversi.
