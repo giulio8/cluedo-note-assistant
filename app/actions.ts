@@ -63,10 +63,13 @@ async function saveGamesFS(games: SavedGame[]) {
 // --- ACTIONS ---
 
 export async function getGames(): Promise<SavedGame[]> {
+    console.log('[DEBUG] getGames called. KV Mode:', shouldUseKV());
     if (shouldUseKV()) {
         try {
             // Retrieve from Vercel KV
-            return await kv.get<SavedGame[]>(KV_KEY) || [];
+            const games = await kv.get<SavedGame[]>(KV_KEY) || [];
+            console.log(`[DEBUG] KV get success. Found ${games.length} games.`);
+            return games;
         } catch (error) {
             console.error('Error reading games (KV):', error);
             return [];
@@ -80,6 +83,7 @@ export async function getGames(): Promise<SavedGame[]> {
 export async function saveGame(game: SavedGame): Promise<boolean> {
     try {
         const updatedGame = { ...game, lastUpdated: Date.now() };
+        console.log(`[DEBUG] saveGame calling for ${game.id}. KV Mode: ${shouldUseKV()}`);
 
         if (shouldUseKV()) {
             // KV Strategy
@@ -88,6 +92,7 @@ export async function saveGame(game: SavedGame): Promise<boolean> {
             if (index >= 0) games[index] = updatedGame;
             else games.push(updatedGame);
             await kv.set(KV_KEY, games);
+            console.log('[DEBUG] KV set success');
         } else {
             // FS Strategy
             const games = await getGamesFS();

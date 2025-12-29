@@ -84,7 +84,7 @@
     "id": "73b58db9-c912-40a6-add6-32ec307e3d91",
     "name": "Partita 14:12",
     "createdAt": 1767013921859,
-    "lastUpdated": 1767015364500,
+    "lastUpdated": 1767017532887,
     "mode": "DEV",
     "players": [
       {
@@ -232,6 +232,17 @@
         ],
         "responderId": "p0",
         "provenCardId": null
+      },
+      {
+        "id": "turn_10",
+        "turnNumber": 10,
+        "timestamp": "2025-12-29T14:07:41.663Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p0",
+        "cards": [
+          "rope"
+        ],
+        "hasOneOf": true
       }
     ],
     "groundTruth": {
