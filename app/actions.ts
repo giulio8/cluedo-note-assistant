@@ -2,10 +2,16 @@
 
 import fs from 'fs';
 import path from 'path';
-import { GameLog, Player, Constraint } from '@/lib/types';
+import { kv } from '@vercel/kv';
+import { GameLog, Player } from '@/lib/types';
 import { ALL_CARDS, SUSPECTS, WEAPONS, ROOMS, CardId } from '@/lib/constants';
 
 const DATA_FILE = path.join(process.cwd(), 'data', 'games.json');
+const KV_KEY = 'cluedo_games';
+
+// Determine Storage Strategy
+// Checks for Vercel KV environment variables
+const shouldUseKV = () => !!process.env.KV_REST_API_URL;
 
 export interface SavedGame {
     id: string;
@@ -26,7 +32,8 @@ export interface SavedGame {
     solution?: { suspect: CardId, weapon: CardId, room: CardId };
 }
 
-// Ensure data directory exists
+// --- FILE SYSTEM HELPERS (Local Fallback) ---
+
 function ensureDataDir() {
     const dir = path.dirname(DATA_FILE);
     if (!fs.existsSync(dir)) {
@@ -37,35 +44,58 @@ function ensureDataDir() {
     }
 }
 
-// --- ACTIONS ---
-
-export async function getGames(): Promise<SavedGame[]> {
+async function getGamesFS(): Promise<SavedGame[]> {
     ensureDataDir();
     try {
         const data = fs.readFileSync(DATA_FILE, 'utf-8');
         return JSON.parse(data);
     } catch (error) {
-        console.error('Error reading games:', error);
+        console.error('Error reading games (FS):', error);
         return [];
     }
 }
 
-export async function saveGame(game: SavedGame): Promise<boolean> {
+async function saveGamesFS(games: SavedGame[]) {
     ensureDataDir();
-    try {
-        const games = await getGames();
-        const index = games.findIndex(g => g.id === game.id);
+    fs.writeFileSync(DATA_FILE, JSON.stringify(games, null, 2));
+}
 
-        // Update timestamp
+// --- ACTIONS ---
+
+export async function getGames(): Promise<SavedGame[]> {
+    if (shouldUseKV()) {
+        try {
+            // Retrieve from Vercel KV
+            return await kv.get<SavedGame[]>(KV_KEY) || [];
+        } catch (error) {
+            console.error('Error reading games (KV):', error);
+            return [];
+        }
+    } else {
+        // Fallback to Local FS
+        return getGamesFS();
+    }
+}
+
+export async function saveGame(game: SavedGame): Promise<boolean> {
+    try {
         const updatedGame = { ...game, lastUpdated: Date.now() };
 
-        if (index >= 0) {
-            games[index] = updatedGame;
+        if (shouldUseKV()) {
+            // KV Strategy
+            const games = await kv.get<SavedGame[]>(KV_KEY) || [];
+            const index = games.findIndex(g => g.id === game.id);
+            if (index >= 0) games[index] = updatedGame;
+            else games.push(updatedGame);
+            await kv.set(KV_KEY, games);
         } else {
-            games.push(updatedGame);
+            // FS Strategy
+            const games = await getGamesFS();
+            const index = games.findIndex(g => g.id === game.id);
+            if (index >= 0) games[index] = updatedGame;
+            else games.push(updatedGame);
+            saveGamesFS(games);
         }
-
-        fs.writeFileSync(DATA_FILE, JSON.stringify(games, null, 2));
         return true;
     } catch (error) {
         console.error('Error saving game:', error);
@@ -79,11 +109,16 @@ export async function loadGame(id: string): Promise<SavedGame | null> {
 }
 
 export async function deleteGame(id: string): Promise<boolean> {
-    ensureDataDir();
     try {
-        const games = await getGames();
-        const filtered = games.filter(g => g.id !== id);
-        fs.writeFileSync(DATA_FILE, JSON.stringify(filtered, null, 2));
+        if (shouldUseKV()) {
+            const games = await kv.get<SavedGame[]>(KV_KEY) || [];
+            const filtered = games.filter(g => g.id !== id);
+            await kv.set(KV_KEY, filtered);
+        } else {
+            const games = await getGamesFS();
+            const filtered = games.filter(g => g.id !== id);
+            saveGamesFS(filtered);
+        }
         return true;
     } catch (error) {
         console.error('Error deleting game:', error);
@@ -109,7 +144,7 @@ export async function createNewGame(
         name: pName,
         isHero: pName === heroName,
         cardCount: baseCardsPerPlayer + (index < remainder ? 1 : 0),
-        characterId: 'miss_scarlett' // Default, can be customized later if needed
+        characterId: 'miss_scarlett' // Default constant
     }));
 
     const newGame: SavedGame = {
@@ -125,7 +160,6 @@ export async function createNewGame(
 
     // 2. Dev Mode Logic (Ground Truth Generation)
     if (mode === 'DEV') {
-        // Randomly select solution
         const solutionSuspect = SUSPECTS[Math.floor(Math.random() * SUSPECTS.length)];
         const solutionWeapon = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
         const solutionRoom = ROOMS[Math.floor(Math.random() * ROOMS.length)];
@@ -137,17 +171,14 @@ export async function createNewGame(
         };
 
         const solutionIds = new Set([newGame.solution.suspect, newGame.solution.weapon, newGame.solution.room]);
-
-        // Shuffle remaining cards
         const remainingCards = ALL_CARDS.filter(c => !solutionIds.has(c.id));
 
-        // Fisher-Yates Shuffle
+        // Shuffle
         for (let i = remainingCards.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [remainingCards[i], remainingCards[j]] = [remainingCards[j], remainingCards[i]];
         }
 
-        // Distribute
         const groundTruth: Record<string, CardId[]> = {};
         playerNames.forEach((_, idx) => groundTruth[`p${idx}`] = []);
 
