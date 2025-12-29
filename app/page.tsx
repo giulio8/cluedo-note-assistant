@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useGameStoreWithUndo } from '@/store/gameStore';
 import { loadGame, saveGame, SavedGame } from './actions';
@@ -14,7 +14,7 @@ import { SUSPECTS, WEAPONS, ROOMS, ALL_CARDS, CardId } from '@/lib/constants';
 import { Card, CellState, LogEntry, GridState, Constraint } from '@/types/game';
 import { Plus, RotateCcw, LogOut, Loader2, ExternalLink } from 'lucide-react';
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlGameId = searchParams.get('gameId');
@@ -340,4 +340,16 @@ export default function Home() {
       />
     </main>
   );
+}
+
+export default function Home() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-noir-900 flex items-center justify-center text-slate-400">
+                <Loader2 className="animate-spin w-8 h-8" />
+            </div>
+        }>
+            <HomeContent />
+        </Suspense>
+    );
 }

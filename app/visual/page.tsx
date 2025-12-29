@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useGameStoreWithUndo } from '@/store/gameStore';
 import { loadGame } from '@/app/actions';
@@ -8,7 +8,7 @@ import { CardAsset } from '@/components/visual/CardAsset';
 import { ALL_CARDS, CardId } from '@/lib/constants';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
-export default function VisualPage() {
+function VisualPageContent() {
     const searchParams = useSearchParams();
     const gameId = searchParams.get('gameId');
 
@@ -178,5 +178,17 @@ export default function VisualPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function VisualPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-zinc-950 text-zinc-400 flex items-center justify-center">
+                <Loader2 className="animate-spin mr-2" /> Caricamento...
+            </div>
+        }>
+            <VisualPageContent />
+        </Suspense>
     );
 }
