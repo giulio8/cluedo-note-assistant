@@ -1,16 +1,18 @@
 import { ALL_CARDS, CardId } from './constants';
-import { CellState, Constraint, Player, Suggestion, TurnLog } from './types';
+import { CellState, Constraint, GameLog, ManualConstraintLog, Player, Suggestion } from './types';
 
 export class CluedoSolver {
     players: Player[];
     grid: Record<string, Record<CardId, CellState>>; // playerId -> cardId -> state
     constraints: Constraint[];
-    logs: TurnLog[];
+    logs: GameLog[];
+    solutionConstraints: Suggestion[]; // List of triplets that are NOT the solution
 
     constructor(playerNames: string[], heroName: string) {
         this.players = [];
         this.constraints = [];
         this.logs = [];
+        this.solutionConstraints = [];
         this.grid = {};
 
         this.initializePlayers(playerNames, heroName);
@@ -27,9 +29,6 @@ export class CluedoSolver {
 
         // Ordine è importante per la distribuzione del resto
         names.forEach((name, index) => {
-            // In un'app reale, characterId dovrebbe essere selezionato dall'utente. 
-            // Qui prendiamo un placeholder o lo passiamo nel costruttore se necessario.
-            // Assumo che names siano solo stringhe per ora.
             const isHero = name === heroName;
             const extraCard = index < remainder ? 1 : 0;
             const cardCount = baseCardsPerPlayer + extraCard;
@@ -37,7 +36,7 @@ export class CluedoSolver {
             const player: Player = {
                 id: `p${index}`,
                 name: name,
-                characterId: 'miss_scarlett', // Placeholder, in futuro mappa dai nomi o input
+                characterId: 'miss_scarlett',
                 cardCount,
                 isHero
             };
@@ -50,7 +49,6 @@ export class CluedoSolver {
         this.players.forEach(p => {
             this.grid[p.id] = {} as Record<CardId, CellState>;
             ALL_CARDS.forEach(card => {
-                // 'chip' è CardId intero (es {id: 'rope'...}) ma qui usiamo solo l'id stringa
                 this.grid[p.id][card.id] = 'MAYBE';
             });
         });
@@ -63,107 +61,168 @@ export class CluedoSolver {
         }
     }
 
-    // 2. Gestione Input (registerTurn)
-    public registerTurn(
+    // --- ACTION HANDLERS ---
+
+    public addSuggestion(
         askerId: string,
         suggestion: Suggestion | null,
         responderId: string | null,
         provenCardId?: CardId | null
     ) {
-        // 2.1 Registra Log
         const turnNumber = this.logs.length + 1;
-        const log: TurnLog = {
+        const log: GameLog = {
             id: `turn_${turnNumber}`,
             turnNumber,
+            timestamp: new Date(),
+            type: 'SUGGESTION',
             askerId,
             suggestion,
             responderId,
             provenCardId,
-            timestamp: new Date()
         };
+        this.applyLog(log);
         this.logs.push(log);
-
-        // If no suggestion (just moved), no logic to apply
-        if (!suggestion) {
-            return;
-        }
-
-        // 2.2 Logica "Passo": Chiunque sia tra asker (escluso) e responder (escluso) ha passato
-        // e quindi NON ha nessuna delle carte suggerite.
-        if (responderId) {
-            const askerIdx = this.players.findIndex(p => p.id === askerId);
-            const responderIdx = this.players.findIndex(p => p.id === responderId);
-
-            // Calcola indici di chi ha passato
-            let currentIdx = (askerIdx + 1) % this.players.length;
-            while (currentIdx !== responderIdx) {
-                const passedPlayerId = this.players[currentIdx].id;
-                // Segna NO per tutte le carte suggerite
-                suggestion.forEach(cardId => {
-                    this.setCardState(passedPlayerId, cardId, 'NO');
-                });
-                currentIdx = (currentIdx + 1) % this.players.length;
-            }
-
-            // 2.3 Logica Responder
-            if (provenCardId) {
-                // Se la carta è provata (mostrata all'Hero o dall'Hero), è SICURAMENTE posseduta
-                this.setCardState(responderId, provenCardId, 'YES');
-            } else {
-                // Altrimenti crea un vincolo: Responder ha ALMENO una delle carte
-                this.constraints.push({
-                    id: `constraint_${turnNumber}`,
-                    playerId: responderId,
-                    cards: [...suggestion],
-                    resolved: false,
-                    sourceTurnId: log.id
-                });
-            }
-        } else {
-            // Se NESSUNO risponde (responderId === null), allora NESSUNO ha quelle carte (tranne l'asker?)
-            // Nelle regole standard, se nessuno risponde, l'asker potrebbe averle o sono nel dossier.
-            // Se l'asker fa un'ipotesi bluffando, potrebbe averle lui.
-            // Ma per tutti gli altri giocatori, è sicuramente 'NO'.
-            this.players.forEach(p => {
-                if (p.id !== askerId) {
-                    suggestion.forEach(c => this.setCardState(p.id, c, 'NO'));
-                }
-            });
-        }
-
-        // 2.4 Esegui Motore Inferenziale automatica
         this.deriveKnowledge();
+    }
+
+    public addAccusationFailure(accuserId: string, suggestion: Suggestion) {
+        const turnNumber = this.logs.length + 1;
+        const log: GameLog = {
+            id: `turn_${turnNumber}`,
+            turnNumber,
+            timestamp: new Date(),
+            type: 'ACCUSATION_FAILURE',
+            accuserId,
+            suggestion
+        };
+        this.applyLog(log);
+        this.logs.push(log);
+        this.deriveKnowledge();
+    }
+
+    public addManualConstraint(playerId: string, cards: CardId[], hasOneOf: boolean) {
+        const turnNumber = this.logs.length + 1;
+        const log: GameLog = {
+            id: `turn_${turnNumber}`,
+            turnNumber,
+            timestamp: new Date(),
+            type: 'MANUAL_CONSTRAINT',
+            playerId,
+            cards,
+            hasOneOf
+        };
+        this.applyLog(log);
+        this.logs.push(log);
+        this.deriveKnowledge();
+    }
+
+    // Restore state from full log history
+    public restoreState(logs: GameLog[]) {
+        // Reset grid (keep players)
+        this.initializeGrid();
+        this.logs = [];
+        this.constraints = [];
+        this.solutionConstraints = [];
+
+        // Replay all logs
+        logs.forEach(log => {
+            this.logs.push(log);
+            this.applyLog(log);
+        });
+
+        this.deriveKnowledge();
+    }
+    // Core State Update Logic
+    private applyLog(log: GameLog) {
+        if (log.type === 'SUGGESTION') {
+            const { askerId, suggestion, responderId, provenCardId } = log;
+            if (!suggestion) return;
+
+            // Logica Passo
+            if (responderId) {
+                const askerIdx = this.players.findIndex(p => p.id === askerId);
+                const responderIdx = this.players.findIndex(p => p.id === responderId);
+                let currentIdx = (askerIdx + 1) % this.players.length;
+                while (currentIdx !== responderIdx) {
+                    const passedPlayerId = this.players[currentIdx].id;
+                    suggestion.forEach(cardId => this.setCardState(passedPlayerId, cardId, 'NO'));
+                    currentIdx = (currentIdx + 1) % this.players.length;
+                }
+
+                if (provenCardId) {
+                    this.setCardState(responderId, provenCardId, 'YES');
+                } else {
+                    this.constraints.push({
+                        id: `constraint_${log.turnNumber}`,
+                        playerId: responderId,
+                        cards: [...suggestion],
+                        resolved: false,
+                        sourceTurnId: log.id
+                    });
+                }
+            } else {
+                // Nessuno risponde => Soluzione o in mano ad Asker (Bluff)
+                // Assumiamo che gli altri non ce l'abbiano
+                this.players.forEach(p => {
+                    if (p.id !== askerId) {
+                        suggestion.forEach(c => this.setCardState(p.id, c, 'NO'));
+                    }
+                });
+            }
+        }
+        else if (log.type === 'ACCUSATION_FAILURE') {
+            // Player failed with this triplet.
+            // 1. Player is out (handled by UI manually? Or we mark them inactive? Not critical yet).
+            // 2. This triplet is NOT the solution.
+            this.solutionConstraints.push(log.suggestion);
+        }
+        else if (log.type === 'MANUAL_CONSTRAINT') {
+            const { playerId, cards, hasOneOf } = log;
+            if (hasOneOf) {
+                // "Has AT LEAST ONE of [A, B...]"
+                if (cards.length === 1) {
+                    // Certainty YES
+                    this.setCardState(playerId, cards[0], 'YES');
+                } else {
+                    // Complex constraint
+                    this.constraints.push({
+                        id: `constraint_manual_${log.turnNumber}`,
+                        playerId: playerId,
+                        cards: [...cards],
+                        resolved: false,
+                        sourceTurnId: log.id
+                    });
+                }
+            } else {
+                // "Has NONE of [A, B...]"
+                cards.forEach(c => this.setCardState(playerId, c, 'NO'));
+            }
+        }
     }
 
     // 3. Motore di Inferenza
     public deriveKnowledge() {
         let changed = true;
         let loopCount = 0;
-        while (changed && loopCount < 100) { // Safety break
+        while (changed && loopCount < 100) {
             changed = false;
             loopCount++;
 
-            // A. Regola Vincolo Logic
+            // A. Regola Vincolo Logic (Standard)
             this.constraints.filter(c => !c.resolved).forEach(c => {
                 const playerState = this.grid[c.playerId];
-
-                // Filtra carte che sono già NO
                 const possibleCards = c.cards.filter(cardId => playerState[cardId] !== 'NO');
-
-                // Se una delle carte è già YES, il vincolo è soddisfatto
                 const alreadyYes = c.cards.some(cardId => playerState[cardId] === 'YES');
+
                 if (alreadyYes) {
                     c.resolved = true;
-                    // changed = true; // Risolto un vincolo non cambia la griglia direttamente, ma pulisce la lista
                     return;
                 }
 
                 if (possibleCards.length === 0) {
-                    // Errore logico nei dati o nel gioco (cheater?)
                     console.warn(`Vincolo impossibile per giocatore ${c.playerId}`, c);
-                    c.resolved = true; // Ignoralo per evitare loop
+                    c.resolved = true;
                 } else if (possibleCards.length === 1) {
-                    // Solo una possibilità rimasta -> DEVE essere YES
                     const forcedCard = possibleCards[0];
                     if (playerState[forcedCard] !== 'YES') {
                         this.setCardState(c.playerId, forcedCard, 'YES');
@@ -173,8 +232,7 @@ export class CluedoSolver {
                 }
             });
 
-            // B. Regola Cross-Exclusion (Unicità della carta)
-            // Se un giocatore ha YES su una carta, tutti gli altri hanno NO
+            // B. Regola Cross-Exclusion (Unicità)
             ALL_CARDS.forEach(card => {
                 const owner = this.players.find(p => this.grid[p.id][card.id] === 'YES');
                 if (owner) {
@@ -187,7 +245,7 @@ export class CluedoSolver {
                 }
             });
 
-            // C. Regola "Esclusione" (Conteggio Carte)
+            // C. Regola Conteggio Carte
             this.players.forEach(p => {
                 let yesCount = 0;
                 let maybeCount = 0;
@@ -197,8 +255,8 @@ export class CluedoSolver {
                     if (s === 'MAYBE') maybeCount++;
                 });
 
+                // C.1 Max Cards reached
                 if (yesCount === p.cardCount && maybeCount > 0) {
-                    // Ha trovato tutte le sue carte -> Tutte le MAYBE diventano NO
                     ALL_CARDS.forEach(card => {
                         if (this.grid[p.id][card.id] === 'MAYBE') {
                             this.setCardState(p.id, card.id, 'NO');
@@ -207,8 +265,7 @@ export class CluedoSolver {
                     });
                 }
 
-                // C.2 Inverso (Opzionale/Avanzato): Se (MAYBE + YES) == cardCount, allora tutte le MAYBE sono YES
-                // Se so che deve avere 4 carte, ne ho trovate 2 (YES), e ho solo 2 MAYBE rimaste -> Sono YES.
+                // C.2 Min Cards forced
                 if ((yesCount + maybeCount) === p.cardCount && maybeCount > 0) {
                     ALL_CARDS.forEach(card => {
                         if (this.grid[p.id][card.id] === 'MAYBE') {
@@ -219,32 +276,75 @@ export class CluedoSolver {
                 }
             });
 
-            // D. Regola Soluzione (Deduzione per Eliminazione Globale)
-            // Se una carta è NO per TUTTI i giocatori, allora è nel dossier.
-            // Questo non cambia la griglia dei giocatori (restano NO), ma è info utile.
-            // Tuttavia, se la soluzione è "Tutti NO", non c'è azione di scrittura griglia "YES per player".
-            // Ma possiamo usare l'informazione inversa:
-            // Se sappiamo che una carta è nel Dossier (tutti hanno NO), non dobbiamo fare nulla di attivo sui player.
+            // D. Regola Soluzione Avanzata (Inc. Failed Accusations)
+            // 1. Identify "Cards Known in Solution" (All players NO)
+            const solutionCardsYes: CardId[] = [];
+            ALL_CARDS.forEach(card => {
+                if (this.players.every(p => this.grid[p.id][card.id] === 'NO')) {
+                    solutionCardsYes.push(card.id);
+                }
+            });
 
-            // Però: Se sappiamo per certo che una carta NON è nel dossier (es. l'ho vista io), e tutti gli altri hanno NO...
-            // beh allora ce l'ho io. Ma questo è coperto dal caso "Unicità".
+            // 2. Use Failed Accusations to exclude cards from Solution
+            // If Accusation [A, B, C] failed And A, B are in Solution -> C CANNOT be in Solution.
+            const cardsNotinSolution = new Set<CardId>();
+
+            this.solutionConstraints.forEach(triplet => {
+                // Count how many are YES in solution
+                const yesInSol = triplet.filter(c => solutionCardsYes.includes(c));
+                if (yesInSol.length === 2) {
+                    // The 3rd must be NOT in solution
+                    const third = triplet.find(c => !yesInSol.includes(c));
+                    if (third) cardsNotinSolution.add(third);
+                }
+            });
+
+            // 3. Inverse Deduction: If Card C is NOT in Solution, logic implies Someone has it.
+            // If checks show N-1 players have NO for C -> Last player MUST have YES.
+            cardsNotinSolution.forEach(cardId => {
+                const potentialOwners = this.players.filter(p => this.grid[p.id][cardId] !== 'NO');
+
+                // If only 1 potential owner left
+                if (potentialOwners.length === 1) {
+                    const owner = potentialOwners[0];
+                    if (this.grid[owner.id][cardId] !== 'YES') {
+                        this.setCardState(owner.id, cardId, 'YES');
+                        changed = true;
+                    }
+                }
+                // If 0 -> Error? (Impossible state)
+            });
         }
     }
 
-    // Helper per UI: Ottieni stato soluzione
     public getSolutionStatus(): Record<CardId, CellState> {
         const solution: Record<string, CellState> = {};
+
+        // Compute basic status
         ALL_CARDS.forEach(card => {
             const allNo = this.players.every(p => this.grid[p.id][card.id] === 'NO');
             if (allNo) {
                 solution[card.id] = 'YES';
             } else {
-                // Se qualcuno ha YES, soluzione è NO.
-                // Se nessuno ha YES ma ci sono MAYBE, soluzione è MAYBE.
                 const someoneHasIt = this.players.some(p => this.grid[p.id][card.id] === 'YES');
                 solution[card.id] = someoneHasIt ? 'NO' : 'MAYBE';
             }
         });
+
+        // Apply Solution Constraints (Failed Accusations) overrides
+        // If we know S and W are YES, and [S,W,R] failed -> R is NO.
+        const yesCards = Object.entries(solution).filter(([_, s]) => s === 'YES').map(([c]) => c as CardId);
+
+        this.solutionConstraints.forEach(triplet => {
+            const yesInTriplet = triplet.filter(c => yesCards.includes(c));
+            if (yesInTriplet.length === 2) {
+                const third = triplet.find(c => !yesInTriplet.includes(c));
+                if (third && solution[third] === 'MAYBE') {
+                    solution[third] = 'NO'; // We know it's not the solution
+                }
+            }
+        });
+
         return solution;
     }
 }

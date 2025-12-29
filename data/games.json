@@ -1,0 +1,273 @@
+[
+  {
+    "id": "ce2620de-2360-446b-8c1e-c5421ead0f80",
+    "name": "Partita 14:03",
+    "createdAt": 1767013426814,
+    "lastUpdated": 1767015359812,
+    "mode": "DEV",
+    "players": [
+      {
+        "id": "p0",
+        "name": "Umberto",
+        "isHero": false,
+        "cardCount": 4,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p1",
+        "name": "Andrea",
+        "isHero": false,
+        "cardCount": 4,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p2",
+        "name": "Pippo",
+        "isHero": false,
+        "cardCount": 4,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p3",
+        "name": "Carlo",
+        "isHero": false,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p4",
+        "name": "Giulio",
+        "isHero": true,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      }
+    ],
+    "heroName": "Giulio",
+    "logs": [],
+    "groundTruth": {
+      "p0": [
+        "col_mustard",
+        "rev_green",
+        "kitchen",
+        "wrench"
+      ],
+      "p1": [
+        "hall",
+        "billiard_room",
+        "lead_pipe",
+        "ballroom"
+      ],
+      "p2": [
+        "dr_orchid",
+        "candlestick",
+        "library",
+        "rope"
+      ],
+      "p3": [
+        "miss_scarlett",
+        "conservatory",
+        "study"
+      ],
+      "p4": [
+        "revolver",
+        "lounge",
+        "mrs_peacock"
+      ]
+    },
+    "solution": {
+      "suspect": "prof_plum",
+      "weapon": "dagger",
+      "room": "dining_room"
+    }
+  },
+  {
+    "id": "73b58db9-c912-40a6-add6-32ec307e3d91",
+    "name": "Partita 14:12",
+    "createdAt": 1767013921859,
+    "lastUpdated": 1767015364500,
+    "mode": "DEV",
+    "players": [
+      {
+        "id": "p0",
+        "name": "Umberto",
+        "isHero": false,
+        "cardCount": 4,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p1",
+        "name": "Andrea",
+        "isHero": false,
+        "cardCount": 4,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p2",
+        "name": "Pippo",
+        "isHero": false,
+        "cardCount": 4,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p3",
+        "name": "Carlo",
+        "isHero": false,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p4",
+        "name": "Giulio",
+        "isHero": true,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      }
+    ],
+    "heroName": "Giulio",
+    "logs": [
+      {
+        "id": "turn_1",
+        "turnNumber": 1,
+        "timestamp": "2025-12-29T13:33:18.402Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p4",
+        "cards": [
+          "miss_scarlett"
+        ],
+        "hasOneOf": true
+      },
+      {
+        "id": "turn_2",
+        "turnNumber": 2,
+        "timestamp": "2025-12-29T13:33:18.402Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p4",
+        "cards": [
+          "wrench"
+        ],
+        "hasOneOf": true
+      },
+      {
+        "id": "turn_3",
+        "turnNumber": 3,
+        "timestamp": "2025-12-29T13:33:18.402Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p4",
+        "cards": [
+          "library"
+        ],
+        "hasOneOf": true
+      },
+      {
+        "id": "turn_4",
+        "turnNumber": 4,
+        "timestamp": "2025-12-29T13:33:18.402Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p3",
+        "cards": [
+          "mrs_peacock"
+        ],
+        "hasOneOf": true
+      },
+      {
+        "id": "turn_5",
+        "turnNumber": 5,
+        "timestamp": "2025-12-29T13:33:18.402Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p3",
+        "cards": [
+          "revolver"
+        ],
+        "hasOneOf": true
+      },
+      {
+        "id": "turn_6",
+        "turnNumber": 6,
+        "timestamp": "2025-12-29T13:33:18.403Z",
+        "type": "SUGGESTION",
+        "askerId": "p0",
+        "suggestion": [
+          "rev_green",
+          "dagger",
+          "lounge"
+        ],
+        "responderId": "p3",
+        "provenCardId": null
+      },
+      {
+        "id": "turn_7",
+        "turnNumber": 7,
+        "timestamp": "2025-12-29T13:33:18.403Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p3",
+        "cards": [
+          "lounge"
+        ],
+        "hasOneOf": false
+      },
+      {
+        "id": "turn_8",
+        "turnNumber": 8,
+        "timestamp": "2025-12-29T13:33:18.403Z",
+        "type": "SUGGESTION",
+        "askerId": "p1",
+        "suggestion": [
+          "rev_green",
+          "candlestick",
+          "hall"
+        ],
+        "responderId": "p3",
+        "provenCardId": null
+      },
+      {
+        "id": "turn_9",
+        "turnNumber": 9,
+        "timestamp": "2025-12-29T13:33:18.403Z",
+        "type": "SUGGESTION",
+        "askerId": "p2",
+        "suggestion": [
+          "rev_green",
+          "lead_pipe",
+          "study"
+        ],
+        "responderId": "p0",
+        "provenCardId": null
+      }
+    ],
+    "groundTruth": {
+      "p0": [
+        "prof_plum",
+        "kitchen",
+        "candlestick",
+        "lead_pipe"
+      ],
+      "p1": [
+        "billiard_room",
+        "revolver",
+        "library",
+        "rev_green"
+      ],
+      "p2": [
+        "wrench",
+        "dagger",
+        "study",
+        "conservatory"
+      ],
+      "p3": [
+        "ballroom",
+        "hall",
+        "col_mustard"
+      ],
+      "p4": [
+        "lounge",
+        "dr_orchid",
+        "miss_scarlett"
+      ]
+    },
+    "solution": {
+      "suspect": "mrs_peacock",
+      "weapon": "rope",
+      "room": "dining_room"
+    }
+  }
+]

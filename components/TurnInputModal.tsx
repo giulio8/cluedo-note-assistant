@@ -14,8 +14,10 @@ export default function TurnInputModal({ isOpen, onClose }: TurnInputModalProps)
     const { players, registerTurn, logs } = useGameStoreWithUndo();
 
     // Logic to guess next asker
-    const lastLog = logs[logs.length - 1];
-    const lastAskerIndex = lastLog ? players.findIndex(p => p.id === lastLog.askerId) : -1;
+    // Logic to guess next asker
+    const lastSuggestionLog = [...logs].reverse().find(l => l.type === 'SUGGESTION');
+    const lastAskerId = (lastSuggestionLog?.type === 'SUGGESTION') ? lastSuggestionLog.askerId : null;
+    const lastAskerIndex = lastAskerId ? players.findIndex(p => p.id === lastAskerId) : -1;
     const nextAskerId = lastAskerIndex >= 0
         ? players[(lastAskerIndex + 1) % players.length].id
         : players[0]?.id;

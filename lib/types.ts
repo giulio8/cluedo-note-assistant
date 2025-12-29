@@ -12,28 +12,52 @@ export interface Player {
 
 export type Suggestion = [CardId, CardId, CardId]; // [Suspect, Weapon, Room]
 
-export interface TurnLog {
+export type LogType = 'SUGGESTION' | 'ACCUSATION_FAILURE' | 'MANUAL_CONSTRAINT';
+
+export interface BaseLog {
     id: string;
     turnNumber: number;
+    timestamp: Date;
+    type: LogType;
+}
+
+export interface SuggestionLog extends BaseLog {
+    type: 'SUGGESTION';
     askerId: string;
     suggestion: Suggestion | null;
-    responderId: string | null; // null if nobody answered (which shouldn't happen in standard rules unless winning, but technically possible if all pass)
-    provenCardId?: CardId | null; // Known only if responder showed it to Hero, or Hero showed it
-    timestamp: Date;
+    responderId: string | null;
+    provenCardId?: CardId | null;
 }
+
+export interface AccusationLog extends BaseLog {
+    type: 'ACCUSATION_FAILURE';
+    accuserId: string;
+    suggestion: Suggestion;
+}
+
+export interface ManualConstraintLog extends BaseLog {
+    type: 'MANUAL_CONSTRAINT';
+    playerId: string;
+    cards: CardId[];
+    // If true: Player has AT LEAST ONE of 'cards'. (If len=1 => YES).
+    // If false: Player has NONE of 'cards'. (NO for all).
+    hasOneOf: boolean;
+}
+
+export type GameLog = SuggestionLog | AccusationLog | ManualConstraintLog;
 
 export interface Constraint {
     id: string;
     playerId: string;
-    cards: CardId[]; // The player has at least one of these cards
-    resolved: boolean; // true if we know which card it is (or if the constraint is satisfied/irrelevant)
-    sourceTurnId?: string; // Optional link to the turn that generated this constraint
+    cards: CardId[];
+    resolved: boolean;
+    sourceTurnId?: string;
 }
 
 export interface GameState {
     players: Player[];
     grid: Record<string, Record<CardId, CellState>>; // playerId -> cardId -> state
     constraints: Constraint[];
-    logs: TurnLog[];
-    solution: Record<CardId, CellState>; // implicit 'YES' if all players are 'NO'
+    logs: GameLog[];
+    solution: Record<CardId, CellState>;
 }

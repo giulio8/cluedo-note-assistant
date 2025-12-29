@@ -28,7 +28,11 @@ export const ROOMS = [
     { id: 'ballroom', label: 'Sala da Ballo' },
 ] as const;
 
-export const ALL_CARDS = [...SUSPECTS, ...WEAPONS, ...ROOMS];
+export const ALL_CARDS = [
+    ...SUSPECTS.map(c => ({ ...c, category: 'suspect' as const })),
+    ...WEAPONS.map(c => ({ ...c, category: 'weapon' as const })),
+    ...ROOMS.map(c => ({ ...c, category: 'room' as const })),
+];
 
 export type SuspectId = typeof SUSPECTS[number]['id'];
 export type WeaponId = typeof WEAPONS[number]['id'];

@@ -33,7 +33,7 @@ async function runTest() {
     // Turn 1: PLUM asks PEACOCK (Mustard, Dagger, Hall). 
     // Hero is observing. Peacock shows a card to Plum (hidden from Hero).
     console.log('Turn 1: Plum asks Peacock (Mustard, Dagger, Hall). Peacock answers (Hidden).');
-    solver.registerTurn(
+    solver.addSuggestion(
         solver.players[1].id, // Plum
         ['col_mustard', 'dagger', 'hall'],
         solver.players[2].id, // Peacock
@@ -51,7 +51,7 @@ async function runTest() {
     // Note: Scarlett is Hero's card, but asking it is valid bluff/check.
     // Peacock passing means Peacock has NO (Scarlett, Dagger, Hall).
     console.log('Turn 2: Plum asks Peacock (Scarlett, Dagger, Hall). Peacock PASSES.');
-    solver.registerTurn(
+    solver.addSuggestion(
         solver.players[1].id, // Plum
         ['miss_scarlett', 'dagger', 'hall'],
         null, // NO ANSWER (Peacock, and everyone else passed or handled by logic)
@@ -86,7 +86,7 @@ async function runTest() {
     // Turn 3: Hero asks Peacock (Revolver, Wrench, Study). 
     // Peacock shows Revolver.
     console.log('Turn 3: Hero asks Peacock. Peacock shows Revolver.');
-    solver.registerTurn(
+    solver.addSuggestion(
         solver.players[0].id, // Hero
         ['revolver', 'wrench', 'study'],
         solver.players[2].id, // Peacock
