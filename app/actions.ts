@@ -169,7 +169,8 @@ export async function createNewGame(
     name: string,
     mode: 'REAL' | 'DEV',
     playerNames: string[],
-    heroName: string
+    heroName: string,
+    heroCards: CardId[] = []
 ): Promise<SavedGame> {
 
     // 1. Basic Setup
@@ -183,7 +184,7 @@ export async function createNewGame(
         name: pName,
         isHero: pName === heroName,
         cardCount: baseCardsPerPlayer + (index < remainder ? 1 : 0),
-        characterId: 'miss_scarlett' // Default constant
+        characterId: 'miss_scarlett'
     }));
 
     const newGame: SavedGame = {
@@ -199,9 +200,24 @@ export async function createNewGame(
 
     // 2. Dev Mode Logic (Ground Truth Generation)
     if (mode === 'DEV') {
-        const solutionSuspect = SUSPECTS[Math.floor(Math.random() * SUSPECTS.length)];
-        const solutionWeapon = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
-        const solutionRoom = ROOMS[Math.floor(Math.random() * ROOMS.length)];
+        const heroPlayer = players.find(p => p.isHero);
+        if (!heroPlayer) throw new Error("Hero not found");
+
+        const heroCardsSet = new Set(heroCards);
+
+        // A. Select Solution (Must NOT be in Hero's hand)
+        // Filter candidates
+        const availableSuspects = SUSPECTS.filter(c => !heroCardsSet.has(c.id as CardId));
+        const availableWeapons = WEAPONS.filter(c => !heroCardsSet.has(c.id as CardId));
+        const availableRooms = ROOMS.filter(c => !heroCardsSet.has(c.id as CardId));
+
+        if (availableSuspects.length === 0 || availableWeapons.length === 0 || availableRooms.length === 0) {
+            throw new Error("Impossible configuration: Hero has all cards of a category!");
+        }
+
+        const solutionSuspect = availableSuspects[Math.floor(Math.random() * availableSuspects.length)];
+        const solutionWeapon = availableWeapons[Math.floor(Math.random() * availableWeapons.length)];
+        const solutionRoom = availableRooms[Math.floor(Math.random() * availableRooms.length)];
 
         newGame.solution = {
             suspect: solutionSuspect.id as CardId,
@@ -210,9 +226,14 @@ export async function createNewGame(
         };
 
         const solutionIds = new Set([newGame.solution.suspect, newGame.solution.weapon, newGame.solution.room]);
-        const remainingCards = ALL_CARDS.filter(c => !solutionIds.has(c.id));
 
-        // Shuffle
+        // B. Prepare Pool (All - Solution - HeroKnown)
+        // Note: HeroKnown are already 'taken' by hero.
+        // We need to fill hands.
+
+        let remainingCards = ALL_CARDS.filter(c => !solutionIds.has(c.id) && !heroCardsSet.has(c.id));
+
+        // Shuffle Pool
         for (let i = remainingCards.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [remainingCards[i], remainingCards[j]] = [remainingCards[j], remainingCards[i]];
@@ -221,11 +242,32 @@ export async function createNewGame(
         const groundTruth: Record<string, CardId[]> = {};
         playerNames.forEach((_, idx) => groundTruth[`p${idx}`] = []);
 
-        let pIdx = 0;
-        remainingCards.forEach(card => {
-            groundTruth[`p${pIdx}`].push(card.id);
-            pIdx = (pIdx + 1) % playerCount;
-        });
+        // C. Assign Known Cards to Hero
+        groundTruth[heroPlayer.id] = [...heroCards];
+
+        // D. Fill Hero's hand if they selected fewer than cardCount
+        while (groundTruth[heroPlayer.id].length < heroPlayer.cardCount) {
+            if (remainingCards.length === 0) break; // Should not happen
+            const card = remainingCards.pop()!;
+            groundTruth[heroPlayer.id].push(card.id);
+        }
+
+        // E. Distribute rest to others
+        // We use a round-robin skipping the hero, or just fill by count?
+        // Round robin is fairer if counts are even, but we calculated cardCount above.
+        // Let's simpler: iterate players, fill until full.
+
+        for (const p of players) {
+            if (p.isHero) continue; // Already full
+            while (groundTruth[p.id].length < p.cardCount) {
+                if (remainingCards.length === 0) break;
+                const card = remainingCards.pop()!;
+                groundTruth[p.id].push(card.id);
+            }
+        }
+
+        // F. If any remain (shouldn't if strict 18), distribute random? 
+        // With 18 cards / N players, math is exact.
 
         newGame.groundTruth = groundTruth;
     }

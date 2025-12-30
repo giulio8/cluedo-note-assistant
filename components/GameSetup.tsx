@@ -56,7 +56,7 @@ export default function GameSetup() {
         try {
             // 1. Create on Server
             const name = `Partita ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-            const newGame = await createNewGame(name, gameMode, orderedNames, heroName);
+            const newGame = await createNewGame(name, gameMode, orderedNames, heroName, Array.from(selectedCards));
 
             // 2. Load into Store
             loadSavedGame(newGame);
