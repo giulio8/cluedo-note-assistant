@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useGameStoreWithUndo } from '@/store/gameStore';
-import { createNewGame, getGames, deleteGame, SavedGame } from '@/app/actions';
+import { createNewGame, getGames, deleteGame, SavedGame, testRedisConnection } from '@/app/actions';
 import { SUSPECTS, WEAPONS, ROOMS, ALL_CARDS, CardId } from '@/lib/constants';
 import { ArrowRight, Check, User, Users, GripVertical, Play, Trash2, FolderOpen, Flame, FlaskConical, Gamepad2 } from 'lucide-react';
 
@@ -371,6 +371,9 @@ export default function GameSetup() {
                                             Inizia Indagine
                                         </>
                                     )}
+                                </button>
+                                <button onClick={async () => alert((await testRedisConnection()).message)} className="block mx-auto mt-2 text-xs text-zinc-600 underline hover:text-zinc-400">
+                                    Test Database
                                 </button>
                             </div>
                         </div>

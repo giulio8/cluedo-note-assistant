@@ -233,3 +233,17 @@ export async function createNewGame(
     await saveGame(newGame);
     return newGame;
 }
+
+export async function testRedisConnection(): Promise<{ success: boolean; message: string }> {
+    if (!shouldUseRedis()) return { success: false, message: 'REDIS_URL not found in Env' };
+    try {
+        await withRedis(async (client) => {
+            await client.set('cluedo_test_ping', 'pong');
+            const res = await client.get('cluedo_test_ping');
+            if (res !== 'pong') throw new Error('Read/Write mismatch');
+        });
+        return { success: true, message: 'Redis Connected & Working!' };
+    } catch (e: any) {
+        return { success: false, message: 'Redis Error: ' + e.message };
+    }
+}
