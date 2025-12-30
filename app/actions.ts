@@ -11,7 +11,7 @@ const KV_KEY = 'cluedo_games';
 
 // Determine Storage Strategy
 // Checks for Vercel KV environment variables
-const shouldUseKV = () => !!process.env.KV_REST_API_URL;
+const shouldUseKV = () => !!(process.env.KV_REST_API_URL || process.env.KV_URL || process.env.REDIS_URL);
 
 export interface SavedGame {
     id: string;
@@ -67,7 +67,8 @@ async function saveGamesFS(games: SavedGame[]) {
 // --- ACTIONS ---
 
 export async function getGames(): Promise<SavedGame[]> {
-    console.log('[DEBUG] getGames called. ENV KV_URL:', process.env.KV_REST_API_URL ? 'FOUND' : 'MISSING', 'KV Mode:', shouldUseKV());
+    const keys = Object.keys(process.env).filter(k => k.includes('KV') || k.includes('REDIS') || k.includes('URL'));
+    console.log('[DEBUG] getGames called. Visible Keys:', keys, 'KV Mode:', shouldUseKV());
     if (shouldUseKV()) {
         try {
             // Retrieve from Vercel KV
