@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { kv } from '@vercel/kv';
+import { createClient } from 'redis';
 import { GameLog, Player } from '@/lib/types';
 import { ALL_CARDS, SUSPECTS, WEAPONS, ROOMS, CardId } from '@/lib/constants';
 
@@ -10,8 +10,8 @@ const DATA_FILE = path.join(process.cwd(), 'data', 'games.json');
 const KV_KEY = 'cluedo_games';
 
 // Determine Storage Strategy
-// Checks for Vercel KV environment variables
-const shouldUseKV = () => !!(process.env.KV_REST_API_URL || process.env.KV_URL || process.env.REDIS_URL);
+// Checks for REDIS_URL environment variable
+const shouldUseRedis = () => !!process.env.REDIS_URL;
 
 export interface SavedGame {
     id: string;
@@ -64,19 +64,37 @@ async function saveGamesFS(games: SavedGame[]) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(games, null, 2));
 }
 
+// --- REDIS HELPER ---
+
+async function withRedis<T>(operation: (client: ReturnType<typeof createClient>) => Promise<T>): Promise<T> {
+    const client = createClient({
+        url: process.env.REDIS_URL
+    });
+
+    // Suppress connection errors from crashing the process immediately
+    client.on('error', (err) => console.error('[REDIS CLIENT ERROR]', err));
+
+    await client.connect();
+    try {
+        return await operation(client);
+    } finally {
+        await client.disconnect();
+    }
+}
+
 // --- ACTIONS ---
 
 export async function getGames(): Promise<SavedGame[]> {
-    const keys = Object.keys(process.env).filter(k => k.includes('KV') || k.includes('REDIS') || k.includes('URL'));
-    console.log('[DEBUG] getGames called. Visible Keys:', keys, 'KV Mode:', shouldUseKV());
-    if (shouldUseKV()) {
+    console.log('[DEBUG] getGames. REDIS_URL:', process.env.REDIS_URL ? 'FOUND' : 'MISSING', 'Using Redis:', shouldUseRedis());
+
+    if (shouldUseRedis()) {
         try {
-            // Retrieve from Vercel KV
-            const games = await kv.get<SavedGame[]>(KV_KEY) || [];
-            console.log(`[DEBUG] KV get success. Found ${games.length} games.`);
-            return games;
+            return await withRedis(async (client) => {
+                const data = await client.get(KV_KEY);
+                return data ? JSON.parse(data) : [];
+            });
         } catch (error) {
-            console.error('Error reading games (KV):', error);
+            console.error('[ERROR] Redis Read Failed:', error);
             return [];
         }
     } else {
@@ -88,16 +106,20 @@ export async function getGames(): Promise<SavedGame[]> {
 export async function saveGame(game: SavedGame): Promise<boolean> {
     try {
         const updatedGame = { ...game, lastUpdated: Date.now() };
-        console.log(`[DEBUG] saveGame calling for ${game.id}. KV Mode: ${shouldUseKV()}`);
 
-        if (shouldUseKV()) {
-            // KV Strategy
-            const games = await kv.get<SavedGame[]>(KV_KEY) || [];
-            const index = games.findIndex(g => g.id === game.id);
-            if (index >= 0) games[index] = updatedGame;
-            else games.push(updatedGame);
-            await kv.set(KV_KEY, games);
-            console.log('[DEBUG] KV set success');
+        if (shouldUseRedis()) {
+            // Redis Strategy
+            await withRedis(async (client) => {
+                const data = await client.get(KV_KEY);
+                const games: SavedGame[] = data ? JSON.parse(data) : [];
+
+                const index = games.findIndex(g => g.id === game.id);
+                if (index >= 0) games[index] = updatedGame;
+                else games.push(updatedGame);
+
+                await client.set(KV_KEY, JSON.stringify(games));
+            });
+            console.log('[DEBUG] Redis Save Success');
         } else {
             // FS Strategy
             const games = await getGamesFS();
@@ -114,16 +136,23 @@ export async function saveGame(game: SavedGame): Promise<boolean> {
 }
 
 export async function loadGame(id: string): Promise<SavedGame | null> {
+    // Reuse getGames which handles the dual logic
     const games = await getGames();
     return games.find(g => g.id === id) || null;
 }
 
 export async function deleteGame(id: string): Promise<boolean> {
     try {
-        if (shouldUseKV()) {
-            const games = await kv.get<SavedGame[]>(KV_KEY) || [];
-            const filtered = games.filter(g => g.id !== id);
-            await kv.set(KV_KEY, filtered);
+        if (shouldUseRedis()) {
+            await withRedis(async (client) => {
+                const data = await client.get(KV_KEY);
+                if (!data) return;
+
+                const games: SavedGame[] = JSON.parse(data);
+                const filtered = games.filter(g => g.id !== id);
+
+                await client.set(KV_KEY, JSON.stringify(filtered));
+            });
         } else {
             const games = await getGamesFS();
             const filtered = games.filter(g => g.id !== id);
