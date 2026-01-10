@@ -234,6 +234,11 @@ function HomeContent() {
   console.log("useChat FULL object:", chatHelpers);
 
   const { messages, isLoading: isAiLoading } = chatHelpers;
+
+  useEffect(() => {
+    // console.log("Messages updated:", messages);
+  }, [messages]);
+
   // Fallback: in some versions append might be named differently or missing from types
   /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
   const append = chatHelpers.append || chatHelpers.sendMessage || ((msg: any) => console.warn("No append/sendMessage found", msg));
@@ -243,23 +248,88 @@ function HomeContent() {
     setChatInput(e.target.value);
   };
 
-  const handleChatSubmit = (e: React.FormEvent) => {
+  // Custom Chat Handling to ensure reliable streaming
+  const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
 
-    if (sendMessage) {
-      sendMessage({
-        role: 'user',
-        content: chatInput
-      }, {
-        headers: {
-          'X-Game-State': JSON.stringify(gameStateForAgent)
-        }
-      });
-    } else {
-      console.error("sendMessage is undefined");
-    }
+    const userText = chatInput;
     setChatInput('');
+    setIsChatOpen(true);
+
+    const userMsg: any = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userText
+    };
+
+    // Update UI immediately
+    // We use chatHelpers.setMessages to keep the UI in sync, effectively bypassing useChat's networking
+    const currentMessages = messages;
+    const newMessages = [...currentMessages, userMsg];
+    // @ts-ignore
+    chatHelpers.setMessages(newMessages);
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          messages: newMessages,
+          gameState: gameStateForAgent
+        }),
+        headers: { 'X-Game-State': JSON.stringify(gameStateForAgent) }
+      });
+
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      const assistantMsg: any = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: ''
+      };
+
+      let assistantContent = "";
+
+      // Add placeholder for assistant response
+      // @ts-ignore
+      chatHelpers.setMessages([...newMessages, assistantMsg]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+
+        // Parse Vercel Data Stream Protocol
+        const lines = chunk.split('\n');
+        for (const line of lines) {
+          if (line.trim().startsWith('0:')) {
+            try {
+              const jsonStr = line.trim().substring(2);
+              if (jsonStr) {
+                assistantContent += JSON.parse(jsonStr);
+              }
+            } catch (e) { /* ignore incomplete json */ }
+          }
+        }
+
+        // Update UI
+        // @ts-ignore
+        chatHelpers.setMessages([
+          ...newMessages,
+          { ...assistantMsg, content: assistantContent }
+        ]);
+      }
+    } catch (err) {
+      console.error("Chat Error:", err);
+      // @ts-ignore
+      chatHelpers.setMessages([
+        ...newMessages,
+        { id: Date.now().toString(), role: 'assistant', content: "⚠️ Errore di connessione." }
+      ]);
+    }
   };
 
   const handleAskAI = (cardId: string, playerId: string) => {

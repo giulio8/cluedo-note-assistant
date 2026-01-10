@@ -218,36 +218,54 @@ Suggest moves that maximize info gain.`);
 
         const inputs = { messages: langChainMessages };
 
-        // We use streamEvents to get tokens.
         const stream = await app.streamEvents(inputs, {
             version: 'v2',
         });
 
-        const encoder = new TextEncoder();
+        // Bridge to filter specific events and yield chunks
+        const eventBridge = async function* () {
+            const encoder = new TextEncoder();
+
+            for await (const event of stream) {
+                if (event.event === 'on_chat_model_stream') {
+                    // Whitelist nodes to stream from
+                    const nodeName = event.metadata?.langgraph_node;
+                    const validNodes = ['investigator', 'simulator', 'responder'];
+
+                    if (!nodeName || !validNodes.includes(nodeName)) {
+                        continue;
+                    }
+
+                    const chunk = event.data.chunk;
+                    if (chunk && chunk.content) {
+                        const text = chunk.content as string;
+                        // Vercel Data Stream Protocol v1
+                        // 0: Text part - requires JSON stringified content
+                        yield encoder.encode('0:' + JSON.stringify(text) + '\n');
+                    }
+                }
+            }
+        };
 
         return new Response(new ReadableStream({
             async start(controller) {
                 try {
-                    for await (const event of stream) {
-                        console.log("Stream Event:", event.event, event.name, event.data?.chunk?.content);
-                        if (event.event === 'on_chat_model_stream') {
-                            const chunk = event.data.chunk;
-                            if (chunk && chunk.content) {
-                                console.log("Streaming content:", chunk.content);
-                                controller.enqueue(encoder.encode(chunk.content as string));
-                            }
-                        }
+                    for await (const chunk of eventBridge()) {
+                        controller.enqueue(chunk);
                     }
                 } catch (e) {
-                    console.error("Stream Error", e);
                     controller.error(e);
                 } finally {
                     controller.close();
                 }
             }
         }), {
-            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+                'X-Vercel-AI-Data-Stream': 'v1'
+            }
         });
+
 
     } catch (error: any) {
         console.error("Agent Error:", error);
