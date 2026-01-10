@@ -1,9 +1,9 @@
 import { ALL_CARDS, CardId } from './constants';
-import { CellState, Constraint, GameLog, ManualConstraintLog, Player, Suggestion } from './types';
+import { CellState, Constraint, GameLog, ManualConstraintLog, Player, Suggestion, CellData, ReasoningTrace, ReasonType } from './types';
 
 export class CluedoSolver {
     players: Player[];
-    grid: Record<string, Record<CardId, CellState>>; // playerId -> cardId -> state
+    grid: Record<string, Record<CardId, CellData>>; // playerId -> cardId -> CellData
     constraints: Constraint[];
     logs: GameLog[];
     solutionConstraints: Suggestion[]; // List of triplets that are NOT the solution
@@ -47,17 +47,27 @@ export class CluedoSolver {
 
     private initializeGrid() {
         this.players.forEach(p => {
-            this.grid[p.id] = {} as Record<CardId, CellState>;
+            this.grid[p.id] = {} as Record<CardId, CellData>;
             ALL_CARDS.forEach(card => {
-                this.grid[p.id][card.id] = 'MAYBE';
+                this.grid[p.id][card.id] = { status: 'MAYBE', provenance: null };
             });
         });
     }
 
     // Helper per settare stato (init Hero cards, etc.)
-    public setCardState(playerId: string, cardId: CardId, state: CellState) {
+    // Helper per settare stato (init Hero cards, etc.)
+    public setCardState(playerId: string, cardId: CardId, state: CellState, reason: ReasoningTrace | null = null) {
         if (this.grid[playerId] && this.grid[playerId][cardId]) {
-            this.grid[playerId][cardId] = state;
+            const current = this.grid[playerId][cardId].status;
+            // Only update if changing or if we have a better reason for an existing state?
+            // For now, if state changes, we update. 
+            // If state is same, we might update if 'reason' is more specific? (Future optimization)
+            if (current !== state) {
+                this.grid[playerId][cardId] = { status: state, provenance: reason };
+            } else if (state !== 'MAYBE' && !this.grid[playerId][cardId].provenance && reason) {
+                // If we had no reason before but now we do, update it
+                this.grid[playerId][cardId].provenance = reason;
+            }
         }
     }
 
@@ -145,12 +155,20 @@ export class CluedoSolver {
                 let currentIdx = (askerIdx + 1) % this.players.length;
                 while (currentIdx !== responderIdx) {
                     const passedPlayerId = this.players[currentIdx].id;
-                    suggestion.forEach(cardId => this.setCardState(passedPlayerId, cardId, 'NO'));
+                    suggestion.forEach(cardId => this.setCardState(passedPlayerId, cardId, 'NO', {
+                        type: 'SUGGESTION_PASS',
+                        turnId: log.id,
+                        description: `Ha passato su suggerimento di ${this.getPlayerName(askerId)}`
+                    }));
                     currentIdx = (currentIdx + 1) % this.players.length;
                 }
 
                 if (provenCardId) {
-                    this.setCardState(responderId, provenCardId, 'YES');
+                    this.setCardState(responderId, provenCardId, 'YES', {
+                        type: 'SUGGESTION_RESPONSE',
+                        turnId: log.id,
+                        description: `Ha mostrato la carta a ${this.getPlayerName(askerId)}`
+                    });
                 } else {
                     this.constraints.push({
                         id: `constraint_${log.turnNumber}`,
@@ -165,7 +183,11 @@ export class CluedoSolver {
                 // Assumiamo che gli altri non ce l'abbiano
                 this.players.forEach(p => {
                     if (p.id !== askerId) {
-                        suggestion.forEach(c => this.setCardState(p.id, c, 'NO'));
+                        suggestion.forEach(c => this.setCardState(p.id, c, 'NO', {
+                            type: 'SUGGESTION_PASS',
+                            turnId: log.id,
+                            description: `Nessuno ha risposto al suggerimento di ${this.getPlayerName(askerId)}`
+                        }));
                     }
                 });
             }
@@ -182,7 +204,11 @@ export class CluedoSolver {
                 // "Has AT LEAST ONE of [A, B...]"
                 if (cards.length === 1) {
                     // Certainty YES
-                    this.setCardState(playerId, cards[0], 'YES');
+                    this.setCardState(playerId, cards[0], 'YES', {
+                        type: 'MANUAL_CONSTRAINT',
+                        turnId: log.id,
+                        description: 'Impostato manualmente come YES'
+                    });
                 } else {
                     // Complex constraint
                     this.constraints.push({
@@ -195,7 +221,11 @@ export class CluedoSolver {
                 }
             } else {
                 // "Has NONE of [A, B...]"
-                cards.forEach(c => this.setCardState(playerId, c, 'NO'));
+                cards.forEach(c => this.setCardState(playerId, c, 'NO', {
+                    type: 'MANUAL_CONSTRAINT',
+                    turnId: log.id,
+                    description: 'Impostato manualmente come NO'
+                }));
             }
         }
     }
@@ -211,8 +241,8 @@ export class CluedoSolver {
             // A. Regola Vincolo Logic (Standard)
             this.constraints.filter(c => !c.resolved).forEach(c => {
                 const playerState = this.grid[c.playerId];
-                const possibleCards = c.cards.filter(cardId => playerState[cardId] !== 'NO');
-                const alreadyYes = c.cards.some(cardId => playerState[cardId] === 'YES');
+                const possibleCards = c.cards.filter(cardId => playerState[cardId].status !== 'NO');
+                const alreadyYes = c.cards.some(cardId => playerState[cardId].status === 'YES');
 
                 if (alreadyYes) {
                     c.resolved = true;
@@ -224,8 +254,12 @@ export class CluedoSolver {
                     c.resolved = true;
                 } else if (possibleCards.length === 1) {
                     const forcedCard = possibleCards[0];
-                    if (playerState[forcedCard] !== 'YES') {
-                        this.setCardState(c.playerId, forcedCard, 'YES');
+                    if (playerState[forcedCard].status !== 'YES') {
+                        this.setCardState(c.playerId, forcedCard, 'YES', {
+                            type: 'CONSTRAINT_SATISFACTION',
+                            turnId: c.sourceTurnId,
+                            description: `Per esclusione dal vincolo su ${c.cards.join(', ')}`
+                        });
                         changed = true;
                     }
                     c.resolved = true;
@@ -234,11 +268,14 @@ export class CluedoSolver {
 
             // B. Regola Cross-Exclusion (Unicità)
             ALL_CARDS.forEach(card => {
-                const owner = this.players.find(p => this.grid[p.id][card.id] === 'YES');
+                const owner = this.players.find(p => this.grid[p.id][card.id].status === 'YES');
                 if (owner) {
                     this.players.forEach(p => {
-                        if (p.id !== owner.id && this.grid[p.id][card.id] !== 'NO') {
-                            this.setCardState(p.id, card.id, 'NO');
+                        if (p.id !== owner.id && this.grid[p.id][card.id].status !== 'NO') {
+                            this.setCardState(p.id, card.id, 'NO', {
+                                type: 'CROSS_EXCLUSION',
+                                description: `Posseduta da ${owner.name}`
+                            });
                             changed = true;
                         }
                     });
@@ -250,7 +287,7 @@ export class CluedoSolver {
                 let yesCount = 0;
                 let maybeCount = 0;
                 ALL_CARDS.forEach(card => {
-                    const s = this.grid[p.id][card.id];
+                    const s = this.grid[p.id][card.id].status;
                     if (s === 'YES') yesCount++;
                     if (s === 'MAYBE') maybeCount++;
                 });
@@ -258,8 +295,11 @@ export class CluedoSolver {
                 // C.1 Max Cards reached
                 if (yesCount === p.cardCount && maybeCount > 0) {
                     ALL_CARDS.forEach(card => {
-                        if (this.grid[p.id][card.id] === 'MAYBE') {
-                            this.setCardState(p.id, card.id, 'NO');
+                        if (this.grid[p.id][card.id].status === 'MAYBE') {
+                            this.setCardState(p.id, card.id, 'NO', {
+                                type: 'CARD_COUNT_MAX',
+                                description: `Giocatore ha già tutte le ${p.cardCount} carte`
+                            });
                             changed = true;
                         }
                     });
@@ -268,8 +308,11 @@ export class CluedoSolver {
                 // C.2 Min Cards forced
                 if ((yesCount + maybeCount) === p.cardCount && maybeCount > 0) {
                     ALL_CARDS.forEach(card => {
-                        if (this.grid[p.id][card.id] === 'MAYBE') {
-                            this.setCardState(p.id, card.id, 'YES');
+                        if (this.grid[p.id][card.id].status === 'MAYBE') {
+                            this.setCardState(p.id, card.id, 'YES', {
+                                type: 'CARD_COUNT_MIN',
+                                description: `Deve avere le restanti carte per arrivare a ${p.cardCount}`
+                            });
                             changed = true;
                         }
                     });
@@ -280,7 +323,7 @@ export class CluedoSolver {
             // 1. Identify "Cards Known in Solution" (All players NO)
             const solutionCardsYes: CardId[] = [];
             ALL_CARDS.forEach(card => {
-                if (this.players.every(p => this.grid[p.id][card.id] === 'NO')) {
+                if (this.players.every(p => this.grid[p.id][card.id].status === 'NO')) {
                     solutionCardsYes.push(card.id);
                 }
             });
@@ -302,13 +345,16 @@ export class CluedoSolver {
             // 3. Inverse Deduction: If Card C is NOT in Solution, logic implies Someone has it.
             // If checks show N-1 players have NO for C -> Last player MUST have YES.
             cardsNotinSolution.forEach(cardId => {
-                const potentialOwners = this.players.filter(p => this.grid[p.id][cardId] !== 'NO');
+                const potentialOwners = this.players.filter(p => this.grid[p.id][cardId].status !== 'NO');
 
                 // If only 1 potential owner left
                 if (potentialOwners.length === 1) {
                     const owner = potentialOwners[0];
-                    if (this.grid[owner.id][cardId] !== 'YES') {
-                        this.setCardState(owner.id, cardId, 'YES');
+                    if (this.grid[owner.id][cardId].status !== 'YES') {
+                        this.setCardState(owner.id, cardId, 'YES', {
+                            type: 'SOLUTION_MISMATCH',
+                            description: 'Non può essere nella soluzione, l\'ultimo possibile proprietario sei tu (o Player X)'
+                        });
                         changed = true;
                     }
                 }
@@ -322,11 +368,11 @@ export class CluedoSolver {
 
         // Compute basic status
         ALL_CARDS.forEach(card => {
-            const allNo = this.players.every(p => this.grid[p.id][card.id] === 'NO');
+            const allNo = this.players.every(p => this.grid[p.id][card.id].status === 'NO');
             if (allNo) {
                 solution[card.id] = 'YES';
             } else {
-                const someoneHasIt = this.players.some(p => this.grid[p.id][card.id] === 'YES');
+                const someoneHasIt = this.players.some(p => this.grid[p.id][card.id].status === 'YES');
                 solution[card.id] = someoneHasIt ? 'NO' : 'MAYBE';
             }
         });
@@ -346,5 +392,9 @@ export class CluedoSolver {
         });
 
         return solution;
+    }
+
+    private getPlayerName(id: string): string {
+        return this.players.find(p => p.id === id)?.name || id;
     }
 }

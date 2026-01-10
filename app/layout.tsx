@@ -22,6 +22,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body
         className={`${courierPrime.variable} antialiased bg-slate-900 text-slate-200`}
+        suppressHydrationWarning
       >
         {children}
       </body>

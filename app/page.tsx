@@ -13,6 +13,8 @@ import CellModal from '@/components/CellModal';
 import { SUSPECTS, WEAPONS, ROOMS, ALL_CARDS, CardId } from '@/lib/constants';
 import { Card, CellState, LogEntry, GridState, Constraint } from '@/types/game';
 import { Plus, RotateCcw, LogOut, Loader2, ExternalLink } from 'lucide-react';
+import { useChat } from '@ai-sdk/react';
+import AIAssistant from '@/components/ai-assistant';
 
 function HomeContent() {
   const router = useRouter();
@@ -112,11 +114,11 @@ function HomeContent() {
   const uiGridState: GridState = useMemo(() => {
     const newGrid: GridState = {};
     Object.entries(grid).forEach(([playerId, cardStates]) => {
-      Object.entries(cardStates).forEach(([cardId, state]) => {
+      Object.entries(cardStates).forEach(([cardId, cellData]) => {
         if (!newGrid[cardId]) newGrid[cardId] = {};
         let uiState: CellState = 'empty';
-        if (state === 'YES') uiState = 'yes';
-        if (state === 'NO') uiState = 'no';
+        if (cellData.status === 'YES') uiState = 'yes';
+        if (cellData.status === 'NO') uiState = 'no';
         newGrid[cardId][playerId] = uiState;
       });
     });
@@ -208,12 +210,90 @@ function HomeContent() {
   }, [constraints, logs]);
 
 
+  // --- AI INTEGRATION ---
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+
+  // Prepare dynamic body for the agent
+  const hero = players.find(p => p.isHero);
+  const gameStateForAgent = {
+    players: players, // Contains names and IDs
+    heroName: hero?.name || '',
+    logs: logs
+  };
+
+  const chatHelpers = useChat({
+    api: '/api/chat',
+    body: { gameState: gameStateForAgent },
+    onError: (e: Error) => {
+      console.error("AI Error:", e);
+      alert("Errore nell'assistente AI. Controlla la console.");
+    }
+  }) as any;
+
+  console.log("useChat FULL object:", chatHelpers);
+
+  const { messages, isLoading: isAiLoading } = chatHelpers;
+  // Fallback: in some versions append might be named differently or missing from types
+  /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+  const append = chatHelpers.append || chatHelpers.sendMessage || ((msg: any) => console.warn("No append/sendMessage found", msg));
+  const sendMessage = chatHelpers.sendMessage;
+
+  const handleChatInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setChatInput(e.target.value);
+  };
+
+  const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+
+    if (sendMessage) {
+      sendMessage({
+        role: 'user',
+        content: chatInput
+      }, {
+        headers: {
+          'X-Game-State': JSON.stringify(gameStateForAgent)
+        }
+      });
+    } else {
+      console.error("sendMessage is undefined");
+    }
+    setChatInput('');
+  };
+
+  const handleAskAI = (cardId: string, playerId: string) => {
+    const p = players.find(x => x.id === playerId);
+    const c = uiCards.find(x => x.id === cardId);
+    const state = grid[playerId]?.[cardId as CardId]; // CellData
+    const status = state?.status || 'UNKNOWN';
+
+    const prompt = `Why is ${c?.name} for ${p?.name} marked as ${status}? Explain the deduction.`;
+
+    setIsChatOpen(true);
+    if (sendMessage) {
+      sendMessage({
+        role: 'user',
+        content: prompt
+      }, {
+        headers: {
+          'X-Game-State': JSON.stringify(gameStateForAgent)
+        }
+      });
+    }
+  };
+
   // Handle Cell Click (Open Modal)
-  const handleCellClick = (cardId: string, playerId: string, _isRightClick?: boolean) => {
+  const handleCellClick = (cardId: string, playerId: string, isRightClick?: boolean) => {
+    // If right click, Ask AI shortcut? 
+    if (isRightClick) {
+      handleAskAI(cardId, playerId);
+      return;
+    }
     setSelectedCell({ playerId, cardId });
   };
 
-  const handleModalConfirm = (action: 'YES' | 'NO' | 'CONSTRAINT', relatedCards?: string[]) => {
+  const handleModalConfirm = (action: 'YES' | 'NO' | 'CONSTRAINT' | 'ASK_AI', relatedCards?: string[]) => {
     if (!selectedCell) return;
     const { playerId, cardId } = selectedCell;
 
@@ -226,6 +306,8 @@ function HomeContent() {
     } else if (action === 'CONSTRAINT' && relatedCards) {
       // "Has One Of [A, B, ...]"
       addManualConstraint(playerId, relatedCards as any[], true);
+    } else if (action === 'ASK_AI') {
+      handleAskAI(cardId, playerId);
     }
     setSelectedCell(null);
   };
@@ -291,9 +373,9 @@ function HomeContent() {
             gridState={uiGridState}
             onCellClick={handleCellClick}
             renderCellExtras={(cardId, playerId) => {
-              const currentState = grid[playerId]?.[cardId as CardId];
+              const currentCellData = grid[playerId]?.[cardId as CardId];
               // Don't show constraint badge if we already know it's NO (distraction)
-              if (currentState === 'NO') return null;
+              if (currentCellData?.status === 'NO') return null;
 
               return (
                 <>
@@ -338,18 +420,28 @@ function HomeContent() {
         cardId={selectedCell?.cardId as any}
         onConfirm={handleModalConfirm}
       />
+
+      <AIAssistant
+        messages={messages}
+        input={chatInput}
+        handleInputChange={handleChatInputChange}
+        handleSubmit={handleChatSubmit}
+        isOpen={isChatOpen}
+        setIsOpen={setIsChatOpen}
+        isLoading={isAiLoading}
+      />
     </main>
   );
 }
 
 export default function Home() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen bg-noir-900 flex items-center justify-center text-slate-400">
-                <Loader2 className="animate-spin w-8 h-8" />
-            </div>
-        }>
-            <HomeContent />
-        </Suspense>
-    );
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-noir-900 flex items-center justify-center text-slate-400">
+        <Loader2 className="animate-spin w-8 h-8" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
+  );
 }

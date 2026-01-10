@@ -84,7 +84,7 @@
     "id": "73b58db9-c912-40a6-add6-32ec307e3d91",
     "name": "Partita 14:12",
     "createdAt": 1767013921859,
-    "lastUpdated": 1767017532887,
+    "lastUpdated": 1768053347991,
     "mode": "DEV",
     "players": [
       {
@@ -279,6 +279,144 @@
       "suspect": "mrs_peacock",
       "weapon": "rope",
       "room": "dining_room"
+    }
+  },
+  {
+    "id": "ed5ea1e0-4b23-42fa-af8e-467551ad2d46",
+    "name": "Partita 15:08",
+    "createdAt": 1768054115582,
+    "lastUpdated": 1768058067812,
+    "mode": "DEV",
+    "players": [
+      {
+        "id": "p0",
+        "name": "prova-ai",
+        "isHero": false,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p1",
+        "name": "prova2",
+        "isHero": false,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p2",
+        "name": "prova3",
+        "isHero": false,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p3",
+        "name": "prova4",
+        "isHero": false,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p4",
+        "name": "prova5",
+        "isHero": false,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      },
+      {
+        "id": "p5",
+        "name": "prova6",
+        "isHero": true,
+        "cardCount": 3,
+        "characterId": "miss_scarlett"
+      }
+    ],
+    "heroName": "prova6",
+    "logs": [
+      {
+        "id": "turn_1",
+        "turnNumber": 1,
+        "timestamp": "2026-01-10T14:08:35.589Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p5",
+        "cards": [
+          "miss_scarlett"
+        ],
+        "hasOneOf": true
+      },
+      {
+        "id": "turn_2",
+        "turnNumber": 2,
+        "timestamp": "2026-01-10T14:08:35.589Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p5",
+        "cards": [
+          "revolver"
+        ],
+        "hasOneOf": true
+      },
+      {
+        "id": "turn_3",
+        "turnNumber": 3,
+        "timestamp": "2026-01-10T14:08:35.590Z",
+        "type": "MANUAL_CONSTRAINT",
+        "playerId": "p5",
+        "cards": [
+          "hall"
+        ],
+        "hasOneOf": true
+      },
+      {
+        "id": "turn_4",
+        "turnNumber": 4,
+        "timestamp": "2026-01-10T14:13:32.563Z",
+        "type": "SUGGESTION",
+        "askerId": "p0",
+        "suggestion": [
+          "col_mustard",
+          "wrench",
+          "dining_room"
+        ],
+        "responderId": "p2",
+        "provenCardId": null
+      }
+    ],
+    "groundTruth": {
+      "p0": [
+        "dining_room",
+        "col_mustard",
+        "dagger"
+      ],
+      "p1": [
+        "billiard_room",
+        "library",
+        "prof_plum"
+      ],
+      "p2": [
+        "study",
+        "lounge",
+        "lead_pipe"
+      ],
+      "p3": [
+        "ballroom",
+        "mrs_peacock",
+        "rope"
+      ],
+      "p4": [
+        "dr_orchid",
+        "wrench",
+        "kitchen"
+      ],
+      "p5": [
+        "miss_scarlett",
+        "revolver",
+        "hall"
+      ]
+    },
+    "solution": {
+      "suspect": "rev_green",
+      "weapon": "candlestick",
+      "room": "conservatory"
     }
   }
 ]
